@@ -1,4 +1,4 @@
-import { elizaLogger, generateText } from "@elizaos/core";
+import { elizaLogger, generateText, generateImage, ServiceType } from "@elizaos/core";
 import {
     Action,
     HandlerCallback,
@@ -8,7 +8,6 @@ import {
     State,
     ModelClass
 } from "@elizaos/core";
-import { generateImage } from "@elizaos/core";
 import fs from "fs";
 import path from "path";
 import { validateImageGenConfig } from "./environment";
@@ -98,7 +97,13 @@ const imageGeneration: Action = {
             livepeerGatewayUrlOk
         );
     },
-    handler: async (
+    handler: async ({
+        runtime,
+        message,
+        state,
+        options,
+        callback,
+    }: {
         runtime: IAgentRuntime,
         message: Memory,
         state: State,
@@ -116,7 +121,7 @@ const imageGeneration: Action = {
             hideWatermark?: boolean;
         },
         callback: HandlerCallback
-    ) => {
+    }) => {
         elizaLogger.log("Composing state for message:", message);
         state = (await runtime.composeState(message)) as State;
         const userId = runtime.agentId;
