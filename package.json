@@ -13,5 +13,43 @@
   },
   "peerDependencies": {
     "whatwg-url": "7.1.0"
+  },
+  "pluginType": "elizaos:plugin:1.0.0",
+  "pluginParameters": {
+    "type": "object",
+    "properties": {
+      "anthropicApiKey": {
+        "type": "string",
+        "description": "Anthropic API key"
+      },
+      "togetherApiKey": {
+        "type": "string",
+        "description": "Together API key"
+      },
+      "heuristApiKey": {
+        "type": "string",
+        "description": "Heurist API key"
+      },
+      "falApiKey": {
+        "type": "string",
+        "description": "Fal API key"
+      },
+      "openaiApiKey": {
+        "type": "string",
+        "description": "OpenAI API key"
+      },
+      "veniceApiKey": {
+        "type": "string",
+        "description": "Venice API key"
+      }
+    }
+  },
+  "pluginEnv": {
+    "ANTHROPIC_API_KEY": "anthropicApiKey",
+    "TOGETHER_API_KEY": "togetherApiKey",
+    "HEURIST_API_KEY": "heuristApiKey",
+    "FAL_API_KEY": "falApiKey",
+    "OPENAI_API_KEY": "openaiApiKey",
+    "VENICE_API_KEY": "veniceApiKey"
   }
 }
