@@ -1,5 +1,5 @@
 {
-    "name": "@elizaos/plugin-image-generation",
+    "name": "@elizaos-plugins/plugin-image-generation",
     "version": "0.1.7-alpha.2",
     "main": "src/index.ts",
     "type": "module",
