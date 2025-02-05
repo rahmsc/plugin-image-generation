@@ -1,15 +1,16 @@
-import { elizaLogger, generateText, generateImage, ServiceType } from "@elizaos/core";
+import { elizaLogger, generateText } from "@elizaos/core";
 import {
-    Action,
-    HandlerCallback,
-    IAgentRuntime,
-    Memory,
-    Plugin,
-    State,
-    ModelClass
+    type Action,
+    type HandlerCallback,
+    type IAgentRuntime,
+    type Memory,
+    type Plugin,
+    type State,
+    ModelClass,
 } from "@elizaos/core";
-import fs from "fs";
-import path from "path";
+import { generateImage } from "@elizaos/core";
+import fs from "node:fs";
+import path from "node:path";
 import { validateImageGenConfig } from "./environment";
 
 export function saveBase64Image(base64Data: string, filename: string): string {
@@ -80,12 +81,15 @@ const imageGeneration: Action = {
         await validateImageGenConfig(runtime);
 
         const anthropicApiKeyOk = !!runtime.getSetting("ANTHROPIC_API_KEY");
+        const nineteenAiApiKeyOk = !!runtime.getSetting("NINETEEN_AI_API_KEY");
         const togetherApiKeyOk = !!runtime.getSetting("TOGETHER_API_KEY");
         const heuristApiKeyOk = !!runtime.getSetting("HEURIST_API_KEY");
         const falApiKeyOk = !!runtime.getSetting("FAL_API_KEY");
         const openAiApiKeyOk = !!runtime.getSetting("OPENAI_API_KEY");
         const veniceApiKeyOk = !!runtime.getSetting("VENICE_API_KEY");
-        const livepeerGatewayUrlOk = !!runtime.getSetting("LIVEPEER_GATEWAY_URL");
+        const livepeerGatewayUrlOk = !!runtime.getSetting(
+            "LIVEPEER_GATEWAY_URL"
+        );
 
         return (
             anthropicApiKeyOk ||
@@ -94,16 +98,11 @@ const imageGeneration: Action = {
             falApiKeyOk ||
             openAiApiKeyOk ||
             veniceApiKeyOk ||
+            nineteenAiApiKeyOk ||
             livepeerGatewayUrlOk
         );
     },
-    handler: async ({
-        runtime,
-        message,
-        state,
-        options,
-        callback,
-    }: {
+    handler: async (
         runtime: IAgentRuntime,
         message: Memory,
         state: State,
@@ -111,6 +110,7 @@ const imageGeneration: Action = {
             width?: number;
             height?: number;
             count?: number;
+            cfgScale?: number;
             negativePrompt?: string;
             numIterations?: number;
             guidanceScale?: number;
@@ -119,9 +119,10 @@ const imageGeneration: Action = {
             jobId?: string;
             stylePreset?: string;
             hideWatermark?: boolean;
+            safeMode?: boolean;
         },
         callback: HandlerCallback
-    }) => {
+    ) => {
         elizaLogger.log("Composing state for message:", message);
         state = (await runtime.composeState(message)) as State;
         const userId = runtime.agentId;
@@ -194,15 +195,58 @@ Ensure that your prompt is detailed, vivid, and incorporates all the elements me
                 prompt: imagePrompt,
                 width: options.width || imageSettings.width || 1024,
                 height: options.height || imageSettings.height || 1024,
-                ...(options.count != null || imageSettings.count != null ? { count: options.count || imageSettings.count || 1 } : {}),
-                ...(options.negativePrompt != null || imageSettings.negativePrompt != null ? { negativePrompt: options.negativePrompt || imageSettings.negativePrompt } : {}),
-                ...(options.numIterations != null || imageSettings.numIterations != null ? { numIterations: options.numIterations || imageSettings.numIterations } : {}),
-                ...(options.guidanceScale != null || imageSettings.guidanceScale != null ? { guidanceScale: options.guidanceScale || imageSettings.guidanceScale } : {}),
-                ...(options.seed != null || imageSettings.seed != null ? { seed: options.seed || imageSettings.seed } : {}),
-                ...(options.modelId != null || imageSettings.modelId != null ? { modelId: options.modelId || imageSettings.modelId } : {}),
-                ...(options.jobId != null || imageSettings.jobId != null ? { jobId: options.jobId || imageSettings.jobId } : {}),
-                ...(options.stylePreset != null || imageSettings.stylePreset != null ? { stylePreset: options.stylePreset || imageSettings.stylePreset } : {}),
-                ...(options.hideWatermark != null || imageSettings.hideWatermark != null ? { hideWatermark: options.hideWatermark || imageSettings.hideWatermark } : {}),
+                ...(options.count != null || imageSettings.count != null
+                    ? { count: options.count || imageSettings.count || 1 }
+                    : {}),
+                ...(options.negativePrompt != null ||
+                imageSettings.negativePrompt != null
+                    ? {
+                          negativePrompt:
+                              options.negativePrompt ||
+                              imageSettings.negativePrompt,
+                      }
+                    : {}),
+                ...(options.numIterations != null ||
+                imageSettings.numIterations != null
+                    ? {
+                          numIterations:
+                              options.numIterations ||
+                              imageSettings.numIterations,
+                      }
+                    : {}),
+                ...(options.guidanceScale != null ||
+                imageSettings.guidanceScale != null
+                    ? {
+                          guidanceScale:
+                              options.guidanceScale ||
+                              imageSettings.guidanceScale,
+                      }
+                    : {}),
+                ...(options.seed != null || imageSettings.seed != null
+                    ? { seed: options.seed || imageSettings.seed }
+                    : {}),
+                ...(options.modelId != null || imageSettings.modelId != null
+                    ? { modelId: options.modelId || imageSettings.modelId }
+                    : {}),
+                ...(options.jobId != null || imageSettings.jobId != null
+                    ? { jobId: options.jobId || imageSettings.jobId }
+                    : {}),
+                ...(options.stylePreset != null ||
+                imageSettings.stylePreset != null
+                    ? { stylePreset: options.stylePreset ||
+                            imageSettings.stylePreset }
+                    : {}),
+                ...(options.hideWatermark != null ||
+                imageSettings.hideWatermark != null
+                    ? { hideWatermark: options.hideWatermark ||
+                            imageSettings.hideWatermark }
+                    : {}),
+                ...(options.safeMode != null || imageSettings.safeMode != null
+                    ? { safeMode: options.safeMode || imageSettings.safeMode }
+                    : {}),
+                ...(options.cfgScale != null || imageSettings.cfgScale != null
+                    ? { cfgScale: options.cfgScale || imageSettings.cfgScale }
+                    : {}),
             },
             runtime
         );
@@ -359,3 +403,5 @@ export const imageGenerationPlugin: Plugin = {
     evaluators: [],
     providers: [],
 };
+
+export default imageGenerationPlugin;
