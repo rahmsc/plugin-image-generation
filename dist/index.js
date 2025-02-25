@@ -6,55 +6,16 @@ import {
 import { generateImage } from "@elizaos/core";
 import fs from "node:fs";
 import path from "node:path";
-
-// src/environment.ts
-import { z } from "zod";
-var imageGenEnvSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().optional(),
-  NINETEEN_AI_API_KEY: z.string().optional(),
-  TOGETHER_API_KEY: z.string().optional(),
-  HEURIST_API_KEY: z.string().optional(),
-  FAL_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  VENICE_API_KEY: z.string().optional(),
-  LIVEPEER_GATEWAY_URL: z.string().optional()
-}).refine(
-  (data) => {
-    return !!(data.ANTHROPIC_API_KEY || data.NINETEEN_AI_API_KEY || data.TOGETHER_API_KEY || data.HEURIST_API_KEY || data.FAL_API_KEY || data.OPENAI_API_KEY || data.VENICE_API_KEY || data.LIVEPEER_GATEWAY_URL);
-  },
-  {
-    message: "At least one of ANTHROPIC_API_KEY, NINETEEN_AI_API_KEY, TOGETHER_API_KEY, HEURIST_API_KEY, FAL_API_KEY, OPENAI_API_KEY, VENICE_API_KEY or LIVEPEER_GATEWAY_URL is required"
-  }
-);
-async function validateImageGenConfig(runtime) {
-  try {
-    const config = {
-      ANTHROPIC_API_KEY: runtime.getSetting("ANTHROPIC_API_KEY") || process.env.ANTHROPIC_API_KEY,
-      NINETEEN_AI_API_KEY: runtime.getSetting("NINETEEN_AI_API_KEY") || process.env.NINETEEN_AI_API_KEY,
-      TOGETHER_API_KEY: runtime.getSetting("TOGETHER_API_KEY") || process.env.TOGETHER_API_KEY,
-      HEURIST_API_KEY: runtime.getSetting("HEURIST_API_KEY") || process.env.HEURIST_API_KEY,
-      FAL_API_KEY: runtime.getSetting("FAL_API_KEY") || process.env.FAL_API_KEY,
-      OPENAI_API_KEY: runtime.getSetting("OPENAI_API_KEY") || process.env.OPENAI_API_KEY,
-      VENICE_API_KEY: runtime.getSetting("VENICE_API_KEY") || process.env.VENICE_API_KEY,
-      LIVEPEER_GATEWAY_URL: runtime.getSetting("LIVEPEER_GATEWAY_URL") || process.env.LIVEPEER_GATEWAY_URL
-    };
-    return imageGenEnvSchema.parse(config);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join("\n");
-      throw new Error(
-        `Image generation configuration validation failed:
-${errorMessages}`
-      );
-    }
-    throw error;
-  }
-}
-
-// src/index.ts
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = dirname(__filename);
+var IMAGE_SYSTEM_PROMPT = `You are an expert in writing prompts for AI art generation. Keep your prompts concise (25 words or less) and focused on visual elements. Do not include any narrative or dialogue. Example: "A regal cat wearing a top hat, sipping milk from a crystal glass, elegant lighting, detailed fur texture."`;
 function saveBase64Image(base64Data, filename) {
-  const imageDir = path.join(process.cwd(), "generatedImages");
+  const imageDir = path.join(__dirname, "images", "lora");
+  elizaLogger.log("Saving base64 image to directory:", imageDir);
   if (!fs.existsSync(imageDir)) {
+    elizaLogger.log("Creating directory as it doesn't exist");
     fs.mkdirSync(imageDir, { recursive: true });
   }
   const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, "");
@@ -64,7 +25,8 @@ function saveBase64Image(base64Data, filename) {
   return filepath;
 }
 async function saveHeuristImage(imageUrl, filename) {
-  const imageDir = path.join(process.cwd(), "generatedImages");
+  const imageDir = path.join(__dirname, "images", "lora");
+  elizaLogger.log("Saving Heurist image to directory:", imageDir);
   if (!fs.existsSync(imageDir)) {
     fs.mkdirSync(imageDir, { recursive: true });
   }
@@ -78,8 +40,9 @@ async function saveHeuristImage(imageUrl, filename) {
   fs.writeFileSync(filepath, imageBuffer);
   return filepath;
 }
-var imageGeneration = {
-  name: "GENERATE_IMAGE",
+elizaLogger.log("Loading milk image generation plugin");
+var milkImageGeneration = {
+  name: "MILK_IMAGE_GENERATION",
   similes: [
     "IMAGE_GENERATION",
     "IMAGE_GEN",
@@ -93,174 +56,57 @@ var imageGeneration = {
   ],
   description: "Generate an image to go along with the message.",
   suppressInitialMessage: true,
-  validate: async (runtime, _message) => {
-    await validateImageGenConfig(runtime);
-    const anthropicApiKeyOk = !!runtime.getSetting("ANTHROPIC_API_KEY");
-    const nineteenAiApiKeyOk = !!runtime.getSetting("NINETEEN_AI_API_KEY");
-    const togetherApiKeyOk = !!runtime.getSetting("TOGETHER_API_KEY");
-    const heuristApiKeyOk = !!runtime.getSetting("HEURIST_API_KEY");
-    const falApiKeyOk = !!runtime.getSetting("FAL_API_KEY");
-    const openAiApiKeyOk = !!runtime.getSetting("OPENAI_API_KEY");
-    const veniceApiKeyOk = !!runtime.getSetting("VENICE_API_KEY");
-    const livepeerGatewayUrlOk = !!runtime.getSetting(
-      "LIVEPEER_GATEWAY_URL"
-    );
-    return anthropicApiKeyOk || togetherApiKeyOk || heuristApiKeyOk || falApiKeyOk || openAiApiKeyOk || veniceApiKeyOk || nineteenAiApiKeyOk || livepeerGatewayUrlOk;
+  validate: async (runtime, message) => {
+    const openAiApiKey = runtime.getSetting("OPENAI_API_KEY");
+    console.log("\u{1F511} Testing OpenAI API Key:", !!openAiApiKey);
+    return !!openAiApiKey;
   },
   handler: async (runtime, message, state, options, callback) => {
-    elizaLogger.log("Composing state for message:", message);
-    state = await runtime.composeState(message);
-    const userId = runtime.agentId;
-    elizaLogger.log("User ID:", userId);
-    const CONTENT = message.content.text;
-    const IMAGE_SYSTEM_PROMPT = `You are an expert in writing prompts for AI art generation. You excel at creating detailed and creative visual descriptions. Incorporating specific elements naturally. Always aim for clear, descriptive language that generates a creative picture. Your output should only contain the description of the image contents, but NOT an instruction like "create an image that..."`;
-    const STYLE = "futuristic with vibrant colors";
-    const IMAGE_PROMPT_INPUT = `You are tasked with generating an image prompt based on a content and a specified style.
-            Your goal is to create a detailed and vivid image prompt that captures the essence of the content while incorporating an appropriate subject based on your analysis of the content.
-
-You will be given the following inputs:
-<content>
-${CONTENT}
-</content>
-
-<style>
-${STYLE}
-</style>
-
-A good image prompt consists of the following elements:
-
-
-
-1. Main subject
-2. Detailed description
-3. Style
-4. Lighting
-5. Composition
-6. Quality modifiers
-
-To generate the image prompt, follow these steps:
-
-1. Analyze the content text carefully, identifying key themes, emotions, and visual elements mentioned or implied.
-
-
-
-
-2. Determine the most appropriate main subject by:
-   - Identifying concrete objects or persons mentioned in the content
-   - Analyzing the central theme or message
-   - Considering metaphorical representations of abstract concepts
-   - Selecting a subject that best captures the content's essence
-
-3. Determine an appropriate environment or setting based on the content's context and your chosen subject.
-
-4. Decide on suitable lighting that enhances the mood or atmosphere of the scene.
-
-5. Choose a color palette that reflects the content's tone and complements the subject.
-
-6. Identify the overall mood or emotion conveyed by the content.
-
-7. Plan a composition that effectively showcases the subject and captures the content's essence.
-
-8. Incorporate the specified style into your description, considering how it affects the overall look and feel of the image.
-
-9. Use concrete nouns and avoid abstract concepts when describing the main subject and elements of the scene.
-
-Construct your image prompt using the following structure:
-
-
-1. Main subject: Describe the primary focus of the image based on your analysis
-2. Environment: Detail the setting or background
-3. Lighting: Specify the type and quality of light in the scene
-4. Colors: Mention the key colors and their relationships
-5. Mood: Convey the overall emotional tone
-6. Composition: Describe how elements are arranged in the frame
-7. Style: Incorporate the given style into the description
-
-Ensure that your prompt is detailed, vivid, and incorporates all the elements mentioned above while staying true to the content and the specified style. LIMIT the image prompt 50 words or less. 
-
-Write a prompt. Only include the prompt and nothing else.`;
+    console.log("\u{1F680} HANDLER: Starting image generation");
+    callback({
+      text: "Starting to generate your image..."
+    });
     const imagePrompt = await generateText({
       runtime,
-      context: IMAGE_PROMPT_INPUT,
+      context: message.content.text,
       modelClass: ModelClass.MEDIUM,
       customSystemPrompt: IMAGE_SYSTEM_PROMPT
     });
-    elizaLogger.log("Image prompt received:", imagePrompt);
-    const imageSettings = runtime.character?.settings?.imageSettings || {};
-    elizaLogger.log("Image settings:", imageSettings);
-    const res = [];
-    elizaLogger.log("Generating image with prompt:", imagePrompt);
+    console.log("\u{1F3A8} Generated prompt:", imagePrompt);
+    callback({
+      text: `Creating image with prompt: ${imagePrompt}`
+    });
     const images = await generateImage(
       {
         prompt: imagePrompt,
-        width: options.width || imageSettings.width || 1024,
-        height: options.height || imageSettings.height || 1024,
-        ...options.count != null || imageSettings.count != null ? { count: options.count || imageSettings.count || 1 } : {},
-        ...options.negativePrompt != null || imageSettings.negativePrompt != null ? {
-          negativePrompt: options.negativePrompt || imageSettings.negativePrompt
-        } : {},
-        ...options.numIterations != null || imageSettings.numIterations != null ? {
-          numIterations: options.numIterations || imageSettings.numIterations
-        } : {},
-        ...options.guidanceScale != null || imageSettings.guidanceScale != null ? {
-          guidanceScale: options.guidanceScale || imageSettings.guidanceScale
-        } : {},
-        ...options.seed != null || imageSettings.seed != null ? { seed: options.seed || imageSettings.seed } : {},
-        ...options.modelId != null || imageSettings.modelId != null ? { modelId: options.modelId || imageSettings.modelId } : {},
-        ...options.jobId != null || imageSettings.jobId != null ? { jobId: options.jobId || imageSettings.jobId } : {},
-        ...options.stylePreset != null || imageSettings.stylePreset != null ? { stylePreset: options.stylePreset || imageSettings.stylePreset } : {},
-        ...options.hideWatermark != null || imageSettings.hideWatermark != null ? { hideWatermark: options.hideWatermark || imageSettings.hideWatermark } : {},
-        ...options.safeMode != null || imageSettings.safeMode != null ? { safeMode: options.safeMode || imageSettings.safeMode } : {},
-        ...options.cfgScale != null || imageSettings.cfgScale != null ? { cfgScale: options.cfgScale || imageSettings.cfgScale } : {}
+        modelId: "dall-e-3",
+        width: 1024,
+        height: 1024
       },
       runtime
     );
+    console.log("\u{1F5BC}\uFE0F Image generation result:", images);
     if (images.success && images.data && images.data.length > 0) {
-      elizaLogger.log(
-        "Image generation successful, number of images:",
-        images.data.length
-      );
-      for (let i = 0; i < images.data.length; i++) {
-        const image = images.data[i];
-        const filename = `generated_${Date.now()}_${i}`;
-        const filepath = image.startsWith("http") ? await saveHeuristImage(image, filename) : saveBase64Image(image, filename);
-        elizaLogger.log(`Processing image ${i + 1}:`, filename);
-        const _caption = "...";
-        res.push({ image: filepath, caption: "..." });
-        elizaLogger.log(
-          `Generated caption for image ${i + 1}:`,
-          "..."
-          //caption.title
-        );
-        callback(
+      callback({
+        text: "Here's your generated image",
+        attachments: [
           {
-            text: "...",
-            //caption.description,
-            attachments: [
-              {
-                id: crypto.randomUUID(),
-                url: filepath,
-                title: "Generated image",
-                source: "imageGeneration",
-                description: "...",
-                //caption.title,
-                text: "...",
-                //caption.description,
-                contentType: "image/png"
-              }
-            ]
-          },
-          [
-            {
-              attachment: filepath,
-              name: `${filename}.png`
-            }
-          ]
-        );
-      }
-    } else {
-      elizaLogger.error("Image generation failed or returned no data.");
+            id: crypto.randomUUID(),
+            url: images.data[0],
+            title: "Generated image",
+            source: "imageGeneration",
+            description: imagePrompt,
+            text: imagePrompt,
+            contentType: "image/png"
+          }
+        ]
+      });
+      return true;
     }
+    callback({
+      text: "Sorry, image generation failed"
+    });
+    return false;
   },
   examples: [
     // TODO: We want to generate images in more abstract ways, not just when asked to generate an image
@@ -331,17 +177,18 @@ Write a prompt. Only include the prompt and nothing else.`;
     ]
   ]
 };
-var imageGenerationPlugin = {
-  name: "imageGeneration",
+var milkImageGenerationPlugin = {
+  name: "milkImageGeneration",
   description: "Generate images",
-  actions: [imageGeneration],
+  actions: [milkImageGeneration],
   evaluators: [],
   providers: []
 };
-var index_default = imageGenerationPlugin;
+elizaLogger.log("Exporting milk image generation plugin");
+var index_default = milkImageGenerationPlugin;
 export {
   index_default as default,
-  imageGenerationPlugin,
+  milkImageGenerationPlugin,
   saveBase64Image,
   saveHeuristImage
 };
