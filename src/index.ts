@@ -100,12 +100,46 @@ const milkImageGeneration: Action = {
   description: "Generate an image to go along with the message.",
   suppressInitialMessage: true,
   validate: async (runtime: IAgentRuntime, message: Memory) => {
+    // Check for OpenAI API key first (for image generation)
     const openAiApiKey = runtime.getSetting("OPENAI_API_KEY");
     console.log("🔑 Testing OpenAI API Key:", !!openAiApiKey);
 
-    // You can test by setting this in your .env file:
-    // OPENAI_API_KEY=your_api_key_here
-    return !!openAiApiKey;
+    // First check if we have the API key for image generation
+    if (!openAiApiKey) return false;
+
+    // Then check if the message implies an image generation request
+    try {
+      // Use explicit command detection first - this is more reliable
+      const explicitCommands = [
+        "image",
+        "picture",
+        "draw",
+        "generate",
+        "create",
+        "show me",
+        "visualize",
+      ];
+      const containsExplicitCommand = explicitCommands.some((cmd) =>
+        message.content.text.toLowerCase().includes(cmd)
+      );
+
+      if (containsExplicitCommand) {
+        console.log(
+          "🤔 Should generate image? true (explicit command detected)"
+        );
+        return true;
+      }
+
+      // Skip the model-based approach since it's causing errors
+      // This simplifies the plugin and makes it more reliable
+      return false;
+    } catch (error) {
+      elizaLogger.error(
+        "Error determining if image should be generated:",
+        error
+      );
+      return false;
+    }
   },
   handler: async (
     runtime: IAgentRuntime,

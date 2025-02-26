@@ -59,7 +59,34 @@ var milkImageGeneration = {
   validate: async (runtime, message) => {
     const openAiApiKey = runtime.getSetting("OPENAI_API_KEY");
     console.log("\u{1F511} Testing OpenAI API Key:", !!openAiApiKey);
-    return !!openAiApiKey;
+    if (!openAiApiKey) return false;
+    try {
+      const explicitCommands = [
+        "image",
+        "picture",
+        "draw",
+        "generate",
+        "create",
+        "show me",
+        "visualize"
+      ];
+      const containsExplicitCommand = explicitCommands.some(
+        (cmd) => message.content.text.toLowerCase().includes(cmd)
+      );
+      if (containsExplicitCommand) {
+        console.log(
+          "\u{1F914} Should generate image? true (explicit command detected)"
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      elizaLogger.error(
+        "Error determining if image should be generated:",
+        error
+      );
+      return false;
+    }
   },
   handler: async (runtime, message, state, options, callback) => {
     console.log("\u{1F680} HANDLER: Starting image generation");
